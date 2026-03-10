@@ -55,16 +55,17 @@ class HailoOllamaConversationEntity(conversation.ConversationEntity):
     def __init__(self, entry: ConfigEntry) -> None:
         """Initialize."""
         self._entry = entry
+        # Host and port are only set during initial config, never in options
         self._host: str = entry.data[CONF_HOST]
         self._port: int = entry.data[CONF_PORT]
-        self._model: str = entry.data[CONF_MODEL]
-        self._system_prompt: str = entry.data.get(
+        # Remaining settings may be overridden via the options flow
+        opts = entry.options or {}
+        self._model: str = opts.get(CONF_MODEL) or entry.data[CONF_MODEL]
+        self._system_prompt: str = opts.get(CONF_SYSTEM_PROMPT) or entry.data.get(
             CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT
         )
-        self._streaming: bool = entry.data.get(CONF_STREAMING, DEFAULT_STREAMING)
-        self._show_thinking: bool = entry.data.get(
-            CONF_SHOW_THINKING, DEFAULT_SHOW_THINKING
-        )
+        self._streaming: bool = opts.get(CONF_STREAMING, entry.data.get(CONF_STREAMING, DEFAULT_STREAMING))
+        self._show_thinking: bool = opts.get(CONF_SHOW_THINKING, entry.data.get(CONF_SHOW_THINKING, DEFAULT_SHOW_THINKING))
         self._attr_unique_id = entry.entry_id
         self._base_url = f"http://{self._host}:{self._port}"
 

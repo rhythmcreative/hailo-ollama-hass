@@ -8,7 +8,7 @@ from typing import Any
 import aiohttp
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
@@ -34,6 +34,11 @@ class HailoOllamaConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Hailo Ollama."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Return the options flow handler."""
+        return HailoOllamaOptionsFlow(config_entry)
 
     def __init__(self) -> None:
         """Initialize."""
@@ -160,6 +165,68 @@ class HailoOllamaConfigFlow(ConfigFlow, domain=DOMAIN):
                 ): bool,
                 vol.Optional(
                     CONF_SHOW_THINKING, default=DEFAULT_SHOW_THINKING
+                ): bool,
+            }),
+        )
+
+
+class HailoOllamaOptionsFlow(OptionsFlow):
+    """Handle options for an existing Hailo Ollama entry."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize."""
+        self._config_entry = config_entry
+        self._models: list[str] = []
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Fetch models and show the options form."""
+        host = self._config_entry.data[CONF_HOST]
+        port = self._config_entry.data[CONF_PORT]
+
+        if not self._models:
+            session = async_get_clientsession(self.hass)
+            url = f"http://{host}:{port}/api/tags"
+            try:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        models = data.get("models", [])
+                        if models and isinstance(models[0], dict):
+                            self._models = [m["name"] for m in models]
+                        elif models and isinstance(models[0], str):
+                            self._models = models
+            except Exception as err:
+                _LOGGER.warning("Options flow: failed to fetch models: %s", err)
+
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = self._config_entry.options or self._config_entry.data
+        current_model = current.get(CONF_MODEL, "")
+        available_models = self._models or [current_model] if current_model else self._models
+        default_model = current_model if current_model in available_models else (available_models[0] if available_models else current_model)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(CONF_MODEL, default=default_model): vol.In(
+                    available_models or [current_model]
+                ),
+                vol.Optional(
+                    CONF_SYSTEM_PROMPT,
+                    default=current.get(CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT),
+                ): str,
+                vol.Optional(
+                    CONF_STREAMING,
+                    default=current.get(CONF_STREAMING, DEFAULT_STREAMING),
+                ): bool,
+                vol.Optional(
+                    CONF_SHOW_THINKING,
+                    default=current.get(CONF_SHOW_THINKING, DEFAULT_SHOW_THINKING),
                 ): bool,
             }),
         )

@@ -28,5 +28,23 @@
       "cannot_connect": "Verbindung zu Hailo-Ollama nicht möglich",
       "no_models": "Keine Modelle auf dem Gerät gefunden"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Hailo Ollama neu konfigurieren",
+        "description": "Modell und Einstellungen für diese Integration aktualisieren.",
+        "data": {
+          "model": "Modell",
+          "system_prompt": "Systemaufforderung",
+          "streaming": "Streaming-Antworten verwenden",
+          "show_thinking": "Denkprozess anzeigen"
+        },
+        "data_description": {
+          "streaming": "Aktivieren für Token-für-Token-Streaming. Deaktivieren für eine einzelne Antwort (einfacher, aber Sie warten auf die vollständige Antwort).",
+          "show_thinking": "Wenn aktiviert, wird der Denkprozess innerhalb von <think>-Tags in der Antwort angezeigt. Deaktivieren, um nur die endgültige Antwort zurückzugeben."
+        }
+      }
+    }
   }
 }

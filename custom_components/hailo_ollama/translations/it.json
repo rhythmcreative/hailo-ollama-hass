@@ -28,5 +28,23 @@
       "cannot_connect": "Impossibile connettersi a Hailo-Ollama",
       "no_models": "Nessun modello trovato sul dispositivo"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Riconfigura Hailo Ollama",
+        "description": "Aggiorna il modello e le impostazioni di questa integrazione.",
+        "data": {
+          "model": "Modello",
+          "system_prompt": "Istruzione di sistema",
+          "streaming": "Usa risposte in streaming",
+          "show_thinking": "Mostra il processo di ragionamento"
+        },
+        "data_description": {
+          "streaming": "Attiva per ricevere i token in modo progressivo. Disattiva per ricevere un'unica risposta completa (più semplice, ma dovrai attendere la risposta intera).",
+          "show_thinking": "Se attivato, il ragionamento all'interno dei tag <think> verrà incluso nella risposta. Disattiva per restituire solo la risposta finale."
+        }
+      }
+    }
   }
 }

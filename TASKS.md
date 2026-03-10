@@ -2,7 +2,7 @@
 
 ## Features
 
-- [ ] Add options flow to allow reconfiguring model, system prompt, and streaming mode after initial setup
+- [x] Add options flow to allow reconfiguring model, system prompt, and streaming mode after initial setup
 - [ ] Expose model parameters (temperature, top_p, max_tokens) as configurable options
 - [ ] Add sensor entities for response metrics (tokens/sec, response time, token count)
 - [ ] Add support for additional languages beyond English in `supported_languages`
@@ -20,5 +20,4 @@
 
 ## Documentation
 
-- [ ] Add HACS manifest for easy installation via HACS
 - [ ] Document required Hailo-Ollama server setup

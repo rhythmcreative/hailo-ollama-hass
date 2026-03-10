@@ -35,6 +35,7 @@ def mock_config_entry():
         CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
         CONF_STREAMING: False,
     }
+    entry.options = {}
     return entry
 
 
@@ -245,8 +246,38 @@ def test_show_thinking_defaults_to_false(mock_config_entry):
         CONF_STREAMING: False,
         # CONF_SHOW_THINKING intentionally omitted
     }
+    entry.options = {}
     entity = HailoOllamaConversationEntity(entry)
     assert entity._show_thinking is False
+
+
+def test_options_override_data():
+    """entry.options values take precedence over entry.data for reconfigurable fields."""
+    entry = MagicMock()
+    entry.entry_id = "test"
+    entry.data = {
+        CONF_HOST: "localhost",
+        CONF_PORT: 8000,
+        CONF_MODEL: "original-model",
+        CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
+        CONF_STREAMING: True,
+        CONF_SHOW_THINKING: False,
+    }
+    entry.options = {
+        CONF_MODEL: "new-model",
+        CONF_SYSTEM_PROMPT: "New prompt",
+        CONF_STREAMING: False,
+        CONF_SHOW_THINKING: True,
+    }
+    entity = HailoOllamaConversationEntity(entry)
+
+    assert entity._model == "new-model"
+    assert entity._system_prompt == "New prompt"
+    assert entity._streaming is False
+    assert entity._show_thinking is True
+    # Host/port always come from data
+    assert entity._host == "localhost"
+    assert entity._port == 8000
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +317,7 @@ def _make_entity(config_entry_data: dict) -> HailoOllamaConversationEntity:
     entry = MagicMock()
     entry.entry_id = "test_entry_id"
     entry.data = config_entry_data
+    entry.options = {}
     entity = HailoOllamaConversationEntity(entry)
     entity.hass = MagicMock()
     return entity

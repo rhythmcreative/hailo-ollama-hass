@@ -17,7 +17,7 @@ from custom_components.hailo_ollama.const import (
     DEFAULT_SYSTEM_PROMPT,
     DOMAIN,
 )
-from custom_components.hailo_ollama.config_flow import HailoOllamaConfigFlow
+from custom_components.hailo_ollama.config_flow import HailoOllamaConfigFlow, HailoOllamaOptionsFlow
 
 
 @pytest.fixture
@@ -309,3 +309,122 @@ async def test_async_step_pick_model_with_input_creates_entry(config_flow):
     assert call_kwargs.kwargs["data"][CONF_MODEL] == "llama3.2:3b"
     assert call_kwargs.kwargs["data"][CONF_HOST] == "localhost"
     assert call_kwargs.kwargs["data"][CONF_PORT] == 8000
+
+
+# ---------------------------------------------------------------------------
+# Options flow
+# ---------------------------------------------------------------------------
+
+def _make_options_flow(hass, data: dict, options: dict | None = None) -> HailoOllamaOptionsFlow:
+    """Helper to create an options flow with a mock config entry."""
+    config_entry = MagicMock()
+    config_entry.data = data
+    config_entry.options = options or {}
+    flow = HailoOllamaOptionsFlow(config_entry)
+    flow.hass = hass
+    return flow
+
+
+@pytest.mark.asyncio
+async def test_options_flow_shows_form(mock_hass):
+    """async_step_init with no input shows the options form."""
+    flow = _make_options_flow(mock_hass, {
+        CONF_HOST: "localhost",
+        CONF_PORT: 8000,
+        CONF_MODEL: "model-a",
+        CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
+        CONF_STREAMING: True,
+    })
+    flow._models = ["model-a", "model-b"]
+    form_result = {"type": "form", "step_id": "init"}
+    flow.async_show_form = MagicMock(return_value=form_result)
+
+    result = await flow.async_step_init(None)
+
+    assert result["step_id"] == "init"
+    flow.async_show_form.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_saves_entry(mock_hass):
+    """Submitting options form creates an entry with the new values."""
+    from custom_components.hailo_ollama.const import CONF_SHOW_THINKING, DEFAULT_SHOW_THINKING
+
+    flow = _make_options_flow(mock_hass, {
+        CONF_HOST: "localhost",
+        CONF_PORT: 8000,
+        CONF_MODEL: "model-a",
+        CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
+        CONF_STREAMING: True,
+    })
+    flow._models = ["model-a", "model-b"]
+    created = {"type": "create_entry", "data": {}}
+    flow.async_create_entry = MagicMock(return_value=created)
+
+    user_input = {
+        CONF_MODEL: "model-b",
+        CONF_SYSTEM_PROMPT: "Custom prompt",
+        CONF_STREAMING: False,
+        CONF_SHOW_THINKING: True,
+    }
+    result = await flow.async_step_init(user_input)
+
+    flow.async_create_entry.assert_called_once_with(title="", data=user_input)
+
+
+@pytest.mark.asyncio
+async def test_options_flow_fetches_models(mock_hass):
+    """Options flow fetches models from /api/tags when _models is empty."""
+    flow = _make_options_flow(mock_hass, {
+        CONF_HOST: "localhost",
+        CONF_PORT: 8000,
+        CONF_MODEL: "model-a",
+        CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
+        CONF_STREAMING: True,
+    })
+
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"models": [{"name": "model-a"}, {"name": "model-b"}]})
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(
+        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_response))
+    )
+
+    form_result = {"type": "form", "step_id": "init"}
+    flow.async_show_form = MagicMock(return_value=form_result)
+
+    with patch(
+        "custom_components.hailo_ollama.config_flow.async_get_clientsession",
+        return_value=mock_session,
+    ):
+        await flow.async_step_init(None)
+
+    assert flow._models == ["model-a", "model-b"]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_uses_options_as_defaults(mock_hass):
+    """Options form pre-fills from entry.options when present."""
+    from custom_components.hailo_ollama.const import CONF_SHOW_THINKING
+
+    flow = _make_options_flow(
+        mock_hass,
+        data={CONF_HOST: "localhost", CONF_PORT: 8000, CONF_MODEL: "model-a"},
+        options={
+            CONF_MODEL: "model-b",
+            CONF_SYSTEM_PROMPT: "Options prompt",
+            CONF_STREAMING: False,
+            CONF_SHOW_THINKING: True,
+        },
+    )
+    flow._models = ["model-a", "model-b"]
+    flow.async_show_form = MagicMock(return_value={"type": "form", "step_id": "init"})
+
+    await flow.async_step_init(None)
+
+    call_kwargs = flow.async_show_form.call_args.kwargs
+    schema = call_kwargs["data_schema"].schema
+    # The default for CONF_MODEL should come from options
+    model_key = next(k for k in schema if getattr(k, "schema", None) == CONF_MODEL)
+    assert model_key.default() == "model-b"
