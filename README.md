@@ -18,7 +18,7 @@ A Home Assistant custom integration that connects to a [Hailo-Ollama](https://gi
 
 ## Requirements
 
-- Home Assistant 2024.1 or newer
+- Home Assistant 2025.1 or newer
 - A running [Hailo-Ollama](https://github.com/hailo-ai/hailo-ollama) server with at least one model downloaded
 
 ## Installation
