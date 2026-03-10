@@ -3,6 +3,7 @@
 [![Tests](https://github.com/sgeorgakis/hailo-ollama-hass/actions/workflows/tests.yml/badge.svg)](https://github.com/sgeorgakis/hailo-ollama-hass/actions/workflows/tests.yml)
 [![Coverage](https://codecov.io/gh/sgeorgakis/hailo-ollama-hass/branch/main/graph/badge.svg)](https://codecov.io/gh/sgeorgakis/hailo-ollama-hass)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 A Home Assistant custom integration that connects to a [Hailo-Ollama](https://github.com/hailo-ai/hailo-ollama) server, enabling local LLM-powered conversation agents using Hailo AI accelerator hardware.
 
@@ -83,4 +84,6 @@ After configuration, the integration creates a conversation agent that can be us
 
 ## License
 
-MIT
+This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0).
+
+You are free to use, modify, fork, and share this software. Any derivative works must also be open source under the same license.
