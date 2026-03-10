@@ -1,0 +1,19 @@
+[project]
+name = "hailo-ollama-hass"
+version = "0.1.0"
+description = "Home Assistant integration for Hailo Ollama"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["custom_components/hailo_ollama"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
