@@ -1,7 +1,6 @@
 """Tests for Hailo Ollama conversation entity."""
 
 import json
-import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +18,7 @@ from custom_components.hailo_ollama.const import (
 from custom_components.hailo_ollama.conversation import (
     HailoError,
     HailoOllamaConversationEntity,
-    THINK_TAG_RE,
+    _process_thinking,
 )
 
 
@@ -39,19 +38,34 @@ def mock_config_entry():
     return entry
 
 
-def test_think_tag_regex():
-    """Test the regex for stripping <think> tags."""
-    text_with_think = "<think>Let me think about this...</think>Here is my response."
-    result = THINK_TAG_RE.sub("", text_with_think).strip()
-    assert result == "Here is my response."
+def test_process_thinking_strip():
+    """_process_thinking strips <think>...</think> when show_thinking=False."""
+    assert _process_thinking("<think>reasoning</think>Answer.", False) == "Answer."
+    assert _process_thinking("<think>\nA\nB\n</think>\nActual", False) == "Actual"
+    assert _process_thinking("No tags here", False) == "No tags here"
 
-    text_multiline = "<think>\nThinking...\nMore thinking...\n</think>\nActual response"
-    result = THINK_TAG_RE.sub("", text_multiline).strip()
-    assert result == "Actual response"
 
-    text_no_think = "Just a normal response"
-    result = THINK_TAG_RE.sub("", text_no_think).strip()
-    assert result == "Just a normal response"
+def test_process_thinking_orphaned_close_tag():
+    """_process_thinking handles </think> without a preceding <think> tag."""
+    result = _process_thinking("Some reasoning\n</think>\nHello there!", False)
+    assert result == "Hello there!"
+
+
+def test_process_thinking_show_wraps_in_italic():
+    """_process_thinking wraps thinking in <i> tags when show_thinking=True."""
+    result = _process_thinking("<think>my reasoning</think>The answer.", True)
+    assert result == "<i>my reasoning</i>\n\nThe answer."
+
+
+def test_process_thinking_show_orphaned_wraps_in_italic():
+    """_process_thinking wraps orphaned thinking content in <i> when show_thinking=True."""
+    result = _process_thinking("my reasoning\n</think>\nThe answer.", True)
+    assert result == "<i>my reasoning</i>\n\nThe answer."
+
+
+def test_process_thinking_no_tags_show_true():
+    """_process_thinking returns plain text unchanged when there are no think tags."""
+    assert _process_thinking("Just a response.", True) == "Just a response."
 
 
 def test_conversation_entity_init(mock_config_entry):
@@ -214,23 +228,21 @@ def test_show_thinking_false_strips_tags(mock_config_entry):
     entity = HailoOllamaConversationEntity(mock_config_entry)
 
     response = "<think>Internal reasoning here.</think>The actual answer."
-    from custom_components.hailo_ollama.conversation import THINK_TAG_RE
-    result = THINK_TAG_RE.sub("", response).strip() if not entity._show_thinking else response.strip()
+    result = _process_thinking(response, entity._show_thinking)
 
     assert result == "The actual answer."
     assert "<think>" not in result
 
 
-def test_show_thinking_true_keeps_tags(mock_config_entry):
-    """When show_thinking is True, <think> tags are preserved in the response."""
+def test_show_thinking_true_wraps_in_italic(mock_config_entry):
+    """When show_thinking is True, thinking content is wrapped in <i> tags."""
     mock_config_entry.data = {**mock_config_entry.data, CONF_SHOW_THINKING: True}
     entity = HailoOllamaConversationEntity(mock_config_entry)
 
     response = "<think>Internal reasoning here.</think>The actual answer."
-    from custom_components.hailo_ollama.conversation import THINK_TAG_RE
-    result = THINK_TAG_RE.sub("", response).strip() if not entity._show_thinking else response.strip()
+    result = _process_thinking(response, entity._show_thinking)
 
-    assert "<think>" in result
+    assert result == "<i>Internal reasoning here.</i>\n\nThe actual answer."
     assert "Internal reasoning here." in result
 
 

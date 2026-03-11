@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 import uuid
 from typing import Any
@@ -34,8 +33,28 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Some models wrap reasoning in <think>...</think>
-THINK_TAG_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+
+def _process_thinking(response_text: str, show_thinking: bool) -> str:
+    """Strip or format <think>...</think> reasoning blocks.
+
+    Handles both well-formed <think>...</think> and responses where the
+    opening <think> tag is absent (some models omit it in streaming).
+    When show_thinking is True the thinking content is wrapped in <i>
+    tags so the UI can present it in italic style.
+    """
+    if "</think>" not in response_text:
+        return response_text.strip()
+
+    # Split on the first </think>; everything before is thinking content.
+    think_part, _, answer_part = response_text.partition("</think>")
+
+    # Strip the optional leading <think> tag.
+    thinking = think_part.removeprefix("<think>").strip()
+    answer = answer_part.strip()
+
+    if show_thinking and thinking:
+        return f"<i>{thinking}</i>\n\n{answer}"
+    return answer
 
 
 async def async_setup_entry(
@@ -117,17 +136,13 @@ class HailoOllamaConversationEntity(conversation.ConversationEntity):
 
         elapsed = time.monotonic() - t0
 
-        # Conditionally strip <think> tags
-        if self._show_thinking:
-            clean_text = response_text.strip()
-        else:
-            clean_text = THINK_TAG_RE.sub("", response_text).strip()
-            if clean_text != response_text:
-                _LOGGER.debug(
-                    "Stripped <think> tags: %d → %d chars",
-                    len(response_text),
-                    len(clean_text),
-                )
+        clean_text = _process_thinking(response_text, self._show_thinking)
+        if clean_text != response_text.strip():
+            _LOGGER.debug(
+                "Processed <think> tags: %d → %d chars",
+                len(response_text),
+                len(clean_text),
+            )
 
         _LOGGER.info(
             "Hailo responded in %.1fs (%d chars): %.100s",
