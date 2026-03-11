@@ -330,9 +330,6 @@ def _make_entity(config_entry_data: dict) -> HailoOllamaConversationEntity:
 @pytest.mark.asyncio
 async def test_async_process_non_streaming():
     """async_process with streaming=False calls _call_non_streaming and returns result."""
-    import sys
-    mock_conversation = sys.modules["homeassistant.components.conversation"]
-
     entity = _make_entity({
         CONF_HOST: "localhost",
         CONF_PORT: 8000,
@@ -345,19 +342,15 @@ async def test_async_process_non_streaming():
     user_input = MagicMock()
     user_input.text = "Hello"
     user_input.agent_id = "test_agent"
+    user_input.conversation_id = "conv-123"
+    user_input.language = "en"
 
-    chat_log = MagicMock()
-    chat_log.content = []
-    chat_log.async_add_assistant_content_from_result = MagicMock()
-
-    result = await entity.async_process(user_input, chat_log)
+    result = await entity.async_process(user_input)
 
     entity._call_non_streaming.assert_called_once()
     messages_sent = entity._call_non_streaming.call_args[0][0]
     assert messages_sent[-1]["content"] == "Hello"
     assert messages_sent[0]["role"] == "system"
-
-    chat_log.async_add_assistant_content_from_result.assert_called_once()
     assert result is not None
 
 
@@ -376,12 +369,10 @@ async def test_async_process_streaming():
     user_input = MagicMock()
     user_input.text = "Hi"
     user_input.agent_id = "agent_x"
+    user_input.conversation_id = "conv-456"
+    user_input.language = "en"
 
-    chat_log = MagicMock()
-    chat_log.content = []
-    chat_log.async_add_assistant_content_from_result = MagicMock()
-
-    result = await entity.async_process(user_input, chat_log)
+    result = await entity.async_process(user_input)
 
     entity._call_streaming.assert_called_once()
     assert result is not None
@@ -389,7 +380,7 @@ async def test_async_process_streaming():
 
 @pytest.mark.asyncio
 async def test_async_process_hailo_error():
-    """When _call_non_streaming raises HailoError, result content contains the error."""
+    """When _call_non_streaming raises HailoError, async_process returns a result without re-raising."""
     entity = _make_entity({
         CONF_HOST: "localhost",
         CONF_PORT: 8000,
@@ -404,24 +395,19 @@ async def test_async_process_hailo_error():
     user_input = MagicMock()
     user_input.text = "Hello"
     user_input.agent_id = "agent"
+    user_input.conversation_id = "conv-err"
+    user_input.language = "en"
 
-    chat_log = MagicMock()
-    chat_log.content = []
-    chat_log.async_add_assistant_content_from_result = MagicMock()
+    # Should not raise — error is caught and returned as a response
+    result = await entity.async_process(user_input)
 
-    result = await entity.async_process(user_input, chat_log)
-
-    # The assistant content should mention the error
-    assistant_content_call = chat_log.async_add_assistant_content_from_result.call_args[0][0]
-    assert "service unavailable" in assistant_content_call.content
+    entity._call_non_streaming.assert_called_once()
+    assert result is not None
 
 
 @pytest.mark.asyncio
 async def test_async_process_with_chat_history():
-    """Chat history messages (user/assistant roles) are included in the API payload."""
-    import sys
-    mock_conversation = sys.modules["homeassistant.components.conversation"]
-
+    """History from a previous turn is included in the API payload on the next turn."""
     entity = _make_entity({
         CONF_HOST: "localhost",
         CONF_PORT: 8000,
@@ -431,33 +417,98 @@ async def test_async_process_with_chat_history():
     })
     entity._call_non_streaming = AsyncMock(return_value="response")
 
-    # Build history entries that pass isinstance(entry, conversation.ChatMessage)
-    # In conftest mock_conversation.ChatMessage is MagicMock (a class), so
-    # we use spec to create instances that pass isinstance checks.
-    ChatMessage = mock_conversation.ChatMessage
+    conversation_id = "conv-history"
 
-    history_user = MagicMock(spec=ChatMessage)
-    history_user.role = "user"
-    history_user.content = "Previous question"
+    # First turn
+    first_input = MagicMock()
+    first_input.text = "Previous question"
+    first_input.agent_id = "agent"
+    first_input.conversation_id = conversation_id
+    first_input.language = "en"
 
-    history_assistant = MagicMock(spec=ChatMessage)
-    history_assistant.role = "assistant"
-    history_assistant.content = "Previous answer"
+    await entity.async_process(first_input)
 
-    user_input = MagicMock()
-    user_input.text = "Follow-up"
-    user_input.agent_id = "agent"
+    # Second turn — history from first turn should be present
+    second_input = MagicMock()
+    second_input.text = "Follow-up"
+    second_input.agent_id = "agent"
+    second_input.conversation_id = conversation_id
+    second_input.language = "en"
 
-    chat_log = MagicMock()
-    chat_log.content = [history_user, history_assistant]
-    chat_log.async_add_assistant_content_from_result = MagicMock()
-
-    await entity.async_process(user_input, chat_log)
+    await entity.async_process(second_input)
 
     messages_sent = entity._call_non_streaming.call_args[0][0]
     roles = [m["role"] for m in messages_sent]
+    contents = [m["content"] for m in messages_sent]
     assert "system" in roles
+    assert "Previous question" in contents
+    assert "response" in contents
     assert messages_sent[-1]["content"] == "Follow-up"
+
+
+@pytest.mark.asyncio
+async def test_async_process_new_conversation_id():
+    """A new UUID conversation_id is generated when user_input.conversation_id is None."""
+    entity = _make_entity({
+        CONF_HOST: "localhost",
+        CONF_PORT: 8000,
+        CONF_MODEL: "llama3.2:3b",
+        CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
+        CONF_STREAMING: False,
+    })
+    entity._call_non_streaming = AsyncMock(return_value="Hello!")
+
+    user_input = MagicMock()
+    user_input.text = "Hello"
+    user_input.agent_id = "agent"
+    user_input.conversation_id = None
+    user_input.language = "en"
+
+    result = await entity.async_process(user_input)
+
+    assert result is not None
+    # A new conversation_id was created and stored
+    assert len(entity._conversations) == 1
+
+
+@pytest.mark.asyncio
+async def test_async_process_reuses_conversation_id():
+    """Calling async_process twice with the same conversation_id passes history on the second call."""
+    entity = _make_entity({
+        CONF_HOST: "localhost",
+        CONF_PORT: 8000,
+        CONF_MODEL: "llama3.2:3b",
+        CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
+        CONF_STREAMING: False,
+    })
+    entity._call_non_streaming = AsyncMock(return_value="First answer")
+
+    conversation_id = "conv-reuse"
+
+    first_input = MagicMock()
+    first_input.text = "First question"
+    first_input.agent_id = "agent"
+    first_input.conversation_id = conversation_id
+    first_input.language = "en"
+
+    await entity.async_process(first_input)
+
+    entity._call_non_streaming = AsyncMock(return_value="Second answer")
+
+    second_input = MagicMock()
+    second_input.text = "Second question"
+    second_input.agent_id = "agent"
+    second_input.conversation_id = conversation_id
+    second_input.language = "en"
+
+    await entity.async_process(second_input)
+
+    messages_sent = entity._call_non_streaming.call_args[0][0]
+    # System prompt + first user turn + first assistant turn + second user turn
+    assert len(messages_sent) == 4
+    assert messages_sent[1] == {"role": "user", "content": "First question"}
+    assert messages_sent[2] == {"role": "assistant", "content": "First answer"}
+    assert messages_sent[3] == {"role": "user", "content": "Second question"}
 
 
 # ---------------------------------------------------------------------------

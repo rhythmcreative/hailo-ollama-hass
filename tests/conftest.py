@@ -27,9 +27,6 @@ mock_conversation = MagicMock()
 mock_conversation.ConversationEntity = MockConversationEntity
 mock_conversation.ConversationInput = MagicMock
 mock_conversation.ConversationResult = MagicMock
-mock_conversation.ChatMessage = MagicMock
-mock_conversation.AssistantContent = MagicMock
-mock_conversation.IntentResponseType = MagicMock
 
 mock_entity_platform = MagicMock()
 mock_entity_platform.AddConfigEntryEntitiesCallback = MagicMock

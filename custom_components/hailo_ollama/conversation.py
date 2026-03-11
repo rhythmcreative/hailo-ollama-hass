@@ -6,14 +6,15 @@ import json
 import logging
 import re
 import time
+import uuid
 from typing import Any
 
 import aiohttp
 
 from homeassistant.components import conversation
-from homeassistant.components.conversation import ChatLog
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import intent
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -68,6 +69,7 @@ class HailoOllamaConversationEntity(conversation.ConversationEntity):
         self._show_thinking: bool = opts.get(CONF_SHOW_THINKING, entry.data.get(CONF_SHOW_THINKING, DEFAULT_SHOW_THINKING))
         self._attr_unique_id = entry.entry_id
         self._base_url = f"http://{self._host}:{self._port}"
+        self._conversations: dict[str, list[dict[str, str]]] = {}
 
     @property
     def supported_languages(self) -> list[str]:
@@ -87,26 +89,20 @@ class HailoOllamaConversationEntity(conversation.ConversationEntity):
     async def async_process(
         self,
         user_input: conversation.ConversationInput,
-        chat_log: ChatLog,
     ) -> conversation.ConversationResult:
         """Process a conversation turn."""
         t0 = time.monotonic()
         user_text = user_input.text
         _LOGGER.debug("User: %s", user_text)
 
-        # Build messages
+        conversation_id = user_input.conversation_id or str(uuid.uuid4())
+        history = self._conversations.get(conversation_id, [])
+
+        # Build messages: system prompt + history + new user message
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self._system_prompt},
         ]
-
-        for entry in chat_log.content:
-            if isinstance(entry, conversation.ChatMessage):
-                if entry.role in ("user", "assistant"):
-                    messages.append({
-                        "role": entry.role,
-                        "content": entry.content,
-                    })
-
+        messages.extend(history)
         messages.append({"role": "user", "content": user_text})
 
         # Call Hailo with configured mode
@@ -140,16 +136,18 @@ class HailoOllamaConversationEntity(conversation.ConversationEntity):
             clean_text,
         )
 
-        chat_log.async_add_assistant_content_from_result(
-            conversation.AssistantContent(
-                agent_id=user_input.agent_id,
-                content=clean_text,
-            )
-        )
+        # Update conversation history
+        updated_history = list(history)
+        updated_history.append({"role": "user", "content": user_text})
+        updated_history.append({"role": "assistant", "content": clean_text})
+        self._conversations[conversation_id] = updated_history
+
+        response = intent.IntentResponse(language=user_input.language)
+        response.async_set_speech(clean_text)
 
         return conversation.ConversationResult(
-            response=conversation.IntentResponseType(clean_text),
-            chat_log=chat_log,
+            response=response,
+            conversation_id=conversation_id,
         )
 
     def _build_payload(
