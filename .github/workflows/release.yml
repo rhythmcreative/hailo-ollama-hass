@@ -32,7 +32,8 @@ jobs:
 
       - name: Build integration zip
         run: |
-          zip -r hailo_ollama.zip custom_components/hailo_ollama/
+          zip -r hailo_ollama.zip custom_components/hailo_ollama/ \
+            --exclude "*.pyc" --exclude "*/__pycache__/*"
 
       - name: Upload zip to release
         env:
