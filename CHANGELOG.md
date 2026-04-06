@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/sgeorgakis/hailo-ollama-hass/compare/v0.3.0...v1.0.0) (2026-04-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* add model management UI, services, response sensors, and auto-reconnect
+
+### Features
+
+* add model management UI, services, response sensors, and auto-reconnect ([9f99c2f](https://github.com/sgeorgakis/hailo-ollama-hass/commit/9f99c2fa4ea445a548fe7aaf4f883127c857a4ae))
+
 ## [0.3.0](https://github.com/sgeorgakis/hailo-ollama-hass/compare/v0.2.1...v0.3.0) (2026-04-06)
 
 
