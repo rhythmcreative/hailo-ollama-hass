@@ -278,7 +278,16 @@ class HailoOllamaConfigFlow(ConfigFlow, domain=DOMAIN):
             ): str,
             vol.Optional(
                 CONF_LLM_HASS_API, default=DEFAULT_LLM_HASS_API
-            ): llm.LLMContextSelector(),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=[{"value": "none", "label": "None"}]
+                    + [
+                        {"value": api.id, "label": api.name}
+                        for api in llm.async_get_apis(self.hass)
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Optional(
                 CONF_STREAMING, default=DEFAULT_STREAMING
             ): bool,
@@ -400,7 +409,16 @@ class HailoOllamaOptionsFlow(OptionsFlow):
             vol.Optional(
                 CONF_LLM_HASS_API,
                 default=current.get(CONF_LLM_HASS_API, DEFAULT_LLM_HASS_API),
-            ): llm.LLMContextSelector(),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=[{"value": "none", "label": "None"}]
+                    + [
+                        {"value": api.id, "label": api.name}
+                        for api in llm.async_get_apis(self.hass)
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Optional(
                 CONF_STREAMING,
                 default=current.get(CONF_STREAMING, DEFAULT_STREAMING),
