@@ -369,12 +369,10 @@ class HailoOllamaConversationEntity(
         tools: list[dict[str, Any]] | None = None
         if self._llm_hass_api != DEFAULT_LLM_HASS_API:
             try:
-                api_instance = llm.async_get_api_instance(
+                # Use async_get_api instead of async_get_api_instance for compatibility
+                api_instance = llm.async_get_api(
                     self.hass,
                     self._llm_hass_api,
-                    user_input.context,
-                    user_input.agent_id,
-                    user_input.device_id,
                 )
                 tools = [
                     {
@@ -388,7 +386,7 @@ class HailoOllamaConversationEntity(
                     for tool in api_instance.tools
                 ]
             except Exception as err:
-                _LOGGER.error("Failed to get LLM API instance: %s", err)
+                _LOGGER.error("Failed to get LLM API: %s", err)
 
         # Add internet search tool
         if tools is None:
@@ -452,33 +450,38 @@ class HailoOllamaConversationEntity(
                         if name == "search_internet":
                             query = args.get("query")
                             _LOGGER.info("Searching internet for: %s", query)
-                            # Using a simple duckduckgo-style search via a text-based API
                             search_url = f"https://api.duckduckgo.com/?q={query}&format=json&no_html=1&skip_disambig=1"
                             session = async_get_clientsession(self.hass)
                             async with session.get(search_url, timeout=10) as search_resp:
                                 if search_resp.status == 200:
                                     search_data = await search_resp.json()
-                                    # Extract abstract or related topics
                                     result = search_data.get("AbstractText")
                                     if not result and search_data.get("RelatedTopics"):
                                         result = search_data["RelatedTopics"][0].get("Text")
                                     
                                     if not result:
-                                        result = "No specific summary found, but the search was successful."
+                                        result = "No specific summary found."
                                     
-                                    tool_result = {"result": result, "source": "DuckDuckGo"}
+                                    tool_result = str(result)
                                 else:
-                                    tool_result = {"error": f"Search failed with status {search_resp.status}"}
+                                    tool_result = f"Error: Search failed with status {search_resp.status}"
                         else:
                             # Standard Home Assistant tool
-                            tool_result = await api_instance.async_call_tool(
-                                llm.ToolInput(tool_name=name, tool_args=args)
+                            # Pass context to tool call if possible
+                            tool_input = llm.ToolInput(
+                                tool_name=name, 
+                                tool_args=args,
+                                context=user_input.context,
+                                agent_id=user_input.agent_id,
+                                device_id=user_input.device_id,
                             )
+                            tool_result = await api_instance.async_call_tool(tool_input)
+                            tool_result = str(tool_result)
                         
                         messages.append({
                             "role": "tool",
                             "name": name,
-                            "content": json.dumps(tool_result),
+                            "content": tool_result,
                         })
                     except Exception as err:
                         _LOGGER.exception("Tool execution error for '%s'", name)
