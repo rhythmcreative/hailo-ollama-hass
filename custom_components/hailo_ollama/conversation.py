@@ -388,28 +388,6 @@ class HailoOllamaConversationEntity(
             except Exception as err:
                 _LOGGER.error("Failed to get LLM API: %s", err)
 
-        # Add internet search tool
-        if tools is None:
-            tools = []
-        
-        tools.append({
-            "type": "function",
-            "function": {
-                "name": "search_internet",
-                "description": "Search the internet for current information, news, or general knowledge that you don't have in your training data.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The search query to look up on the internet."
-                        }
-                    },
-                    "required": ["query"]
-                }
-            }
-        })
-
         # Call Hailo with configured mode, handling tool calls in a loop
         response_text = ""
         success = False
@@ -447,41 +425,23 @@ class HailoOllamaConversationEntity(
 
                     _LOGGER.info("Calling tool %s with %s", name, args)
                     try:
-                        if name == "search_internet":
-                            query = args.get("query")
-                            _LOGGER.info("Searching internet for: %s", query)
-                            search_url = f"https://api.duckduckgo.com/?q={query}&format=json&no_html=1&skip_disambig=1"
-                            session = async_get_clientsession(self.hass)
-                            async with session.get(search_url, timeout=10) as search_resp:
-                                if search_resp.status == 200:
-                                    search_data = await search_resp.json()
-                                    result = search_data.get("AbstractText")
-                                    if not result and search_data.get("RelatedTopics"):
-                                        result = search_data["RelatedTopics"][0].get("Text")
-                                    
-                                    if not result:
-                                        result = "No specific summary found."
-                                    
-                                    tool_result = str(result)
-                                else:
-                                    tool_result = f"Error: Search failed with status {search_resp.status}"
-                        else:
-                            # Standard Home Assistant tool
-                            # Pass context to tool call if possible
-                            tool_input = llm.ToolInput(
-                                tool_name=name, 
-                                tool_args=args,
-                                context=user_input.context,
-                                agent_id=user_input.agent_id,
-                                device_id=user_input.device_id,
-                            )
-                            tool_result = await api_instance.async_call_tool(tool_input)
-                            tool_result = str(tool_result)
+                        # Standard Home Assistant tool
+                        # Pass context to tool call if possible
+                        tool_input = llm.ToolInput(
+                            tool_name=name, 
+                            tool_args=args,
+                            context=user_input.context,
+                            agent_id=user_input.agent_id,
+                            device_id=user_input.device_id,
+                        )
+                        tool_result = await api_instance.async_call_tool(tool_input)
+                        # Convert to string to avoid Oatpp mapping errors (HTTP 500)
+                        tool_result_str = str(tool_result)
                         
                         messages.append({
                             "role": "tool",
                             "name": name,
-                            "content": tool_result,
+                            "content": tool_result_str,
                         })
                     except Exception as err:
                         _LOGGER.exception("Tool execution error for '%s'", name)
