@@ -14,18 +14,20 @@ import aiohttp
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import intent
+from homeassistant.helpers import intent, llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     CONF_HOST,
+    CONF_LLM_HASS_API,
     CONF_MODEL,
     CONF_PORT,
     CONF_SHOW_THINKING,
     CONF_STREAMING,
     CONF_SYSTEM_PROMPT,
+    DEFAULT_LLM_HASS_API,
     DEFAULT_SHOW_THINKING,
     DEFAULT_STREAMING,
     DEFAULT_SYSTEM_PROMPT,
@@ -82,27 +84,34 @@ class HailoOllamaClientMixin:
     """
 
     def _build_payload(
-        self, messages: list[dict[str, Any]], stream: bool
+        self,
+        messages: list[dict[str, Any]],
+        stream: bool,
+        tools: list[dict[str, Any]] | None = None,
     ) -> dict:
         """Build the minimal /api/chat payload."""
-        return {
+        payload = {
             "model": self._model,
             "messages": messages,
             "stream": stream,
         }
+        if tools:
+            payload["tools"] = tools
+        return payload
 
     async def _call_non_streaming(
-        self, messages: list[dict[str, Any]]
-    ) -> str:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """Call /api/chat with stream:false — single JSON response."""
         url = f"{self._base_url}/api/chat"
-        payload = self._build_payload(messages, stream=False)
+        payload = self._build_payload(messages, stream=False, tools=tools)
 
         _LOGGER.debug(
-            "POST %s (non-streaming, %d messages, model=%s)",
+            "POST %s (non-streaming, %d messages, model=%s, %d tools)",
             url,
             len(messages),
             self._model,
+            len(tools) if tools else 0,
         )
 
         session = async_get_clientsession(self.hass)
@@ -118,7 +127,8 @@ class HailoOllamaClientMixin:
 
                 if resp.status != 200:
                     body = await resp.text()
-                    raise HailoError(f"HTTP {resp.status}: {body[:300]}")
+                    _LOGGER.error("Hailo Ollama error (HTTP %s): %s", resp.status, body)
+                    raise HailoError(f"HTTP {resp.status} from Hailo Ollama", details=body)
 
                 data = await resp.json()
 
@@ -127,7 +137,7 @@ class HailoOllamaClientMixin:
                 "stream:false payload error (%s), retrying with streaming",
                 err,
             )
-            return await self._call_streaming(messages)
+            return await self._call_streaming(messages, tools=tools)
 
         except aiohttp.ClientConnectorError as err:
             raise HailoError(
@@ -135,29 +145,27 @@ class HailoOllamaClientMixin:
             ) from err
 
         except TimeoutError as err:
-            raise HailoError(f"Timed out after {DEFAULT_TIMEOUT}s") from err
+            raise HailoError(f"Timed out after {DEFAULT_TIMEOUT}s connecting to {self._host}") from err
 
-        content = data.get("message", {}).get("content", "")
-        if not content:
-            raise HailoError(
-                f"No content in response. "
-                f"Raw: {json.dumps(data)[:300]}"
-            )
+        if "message" not in data:
+            _LOGGER.error("Malformed response from Hailo: %s", json.dumps(data))
+            raise HailoError("Malformed response: 'message' key missing", details=data)
 
-        return content
+        return data
 
     async def _call_streaming(
-        self, messages: list[dict[str, Any]]
-    ) -> str:
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """Call /api/chat with stream:true — collect ndjson chunks."""
         url = f"{self._base_url}/api/chat"
-        payload = self._build_payload(messages, stream=True)
+        payload = self._build_payload(messages, stream=True, tools=tools)
 
         _LOGGER.debug(
-            "POST %s (streaming, %d messages, model=%s)",
+            "POST %s (streaming, %d messages, model=%s, %d tools)",
             url,
             len(messages),
             self._model,
+            len(tools) if tools else 0,
         )
 
         session = async_get_clientsession(self.hass)
@@ -174,7 +182,8 @@ class HailoOllamaClientMixin:
             ) as resp:
                 if resp.status != 200:
                     body = await resp.text()
-                    raise HailoError(f"HTTP {resp.status}: {body[:300]}")
+                    _LOGGER.error("Hailo Ollama streaming error (HTTP %s): %s", resp.status, body)
+                    raise HailoError(f"HTTP {resp.status} from Hailo Ollama (streaming)", details=body)
 
                 try:
                     async for data in resp.content.iter_any():
@@ -210,31 +219,32 @@ class HailoOllamaClientMixin:
             ) from err
 
         except TimeoutError as err:
-            raise HailoError(f"Timed out after {DEFAULT_TIMEOUT}s") from err
+            raise HailoError(f"Timed out after {DEFAULT_TIMEOUT}s connecting to {self._host}") from err
 
         _LOGGER.debug("Stream: %d chunks collected", len(chunks))
 
         if not chunks:
-            raise HailoError("Streaming returned 0 chunks")
+            raise HailoError("Streaming returned 0 chunks from Hailo Ollama")
 
-        last = chunks[-1]
+        # Combine content from chunks
+        final_message = {"role": "assistant", "content": ""}
+        for chunk in chunks:
+            if chunk.get("error"):
+                _LOGGER.error("Error chunk from Hailo: %s", chunk["error"])
+                raise HailoError(f"Error from Hailo: {chunk['error']}", details=chunk)
+            if "message" in chunk:
+                msg = chunk["message"]
+                if "content" in msg:
+                    final_message["content"] += msg["content"]
+                if "tool_calls" in msg:
+                    if "tool_calls" not in final_message:
+                        final_message["tool_calls"] = []
+                    # In Ollama streaming, tool_calls might be incrementally sent or replaced.
+                    # Usually they are in the last chunk or sent fully.
+                    final_message["tool_calls"] = msg["tool_calls"]
 
-        # Last done=true chunk has full content on some server versions
-        if last.get("done") and last.get("message", {}).get("content"):
-            return last["message"]["content"]
+        return {"message": final_message}
 
-        # Concatenate all chunk contents
-        full = "".join(
-            c.get("message", {}).get("content", "") for c in chunks
-        )
-
-        if not full:
-            raise HailoError(
-                f"Got {len(chunks)} chunks but no content. "
-                f"Last: {json.dumps(last)[:200]}"
-            )
-
-        return full
 
 
 class HailoOllamaConversationEntity(
@@ -256,6 +266,9 @@ class HailoOllamaConversationEntity(
         self._model: str = opts.get(CONF_MODEL) or entry.data[CONF_MODEL]
         self._system_prompt: str = opts.get(CONF_SYSTEM_PROMPT) or entry.data.get(
             CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT
+        )
+        self._llm_hass_api: str = opts.get(CONF_LLM_HASS_API) or entry.data.get(
+            CONF_LLM_HASS_API, DEFAULT_LLM_HASS_API
         )
         self._streaming: bool = opts.get(
             CONF_STREAMING, entry.data.get(CONF_STREAMING, DEFAULT_STREAMING)
@@ -351,17 +364,99 @@ class HailoOllamaConversationEntity(
         messages.extend(history)
         messages.append(user_message)
 
-        # Call Hailo with configured mode
+        # Get tools if an LLM API is configured
+        api_instance: llm.APIInstance | None = None
+        tools: list[dict[str, Any]] | None = None
+        if self._llm_hass_api != DEFAULT_LLM_HASS_API:
+            try:
+                api_instance = llm.async_get_api_instance(
+                    self.hass,
+                    self._llm_hass_api,
+                    user_input.context,
+                    user_input.agent_id,
+                    user_input.device_id,
+                )
+                tools = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.parameters,
+                        },
+                    }
+                    for tool in api_instance.tools
+                ]
+            except Exception as err:
+                _LOGGER.error("Failed to get LLM API instance: %s", err)
+
+        # Call Hailo with configured mode, handling tool calls in a loop
+        response_text = ""
         success = False
         try:
-            if self._streaming:
-                response_text = await self._call_streaming(messages)
+            for iteration in range(10):  # Limit tool call iterations
+                if self._streaming:
+                    data = await self._call_streaming(messages, tools=tools)
+                else:
+                    data = await self._call_non_streaming(messages, tools=tools)
+                
+                # If it's a raw string (from old _call_* implementation), wrap it
+                if isinstance(data, str):
+                    data = {"message": {"role": "assistant", "content": data}}
+
+                assistant_msg = data.get("message", {})
+                messages.append(assistant_msg)
+                
+                tool_calls = assistant_msg.get("tool_calls")
+                if not tool_calls or not api_instance:
+                    response_text = assistant_msg.get("content", "")
+                    success = True
+                    break
+
+                _LOGGER.debug("Processing %d tool calls", len(tool_calls))
+                for tool_call in tool_calls:
+                    function = tool_call.get("function", {})
+                    name = function.get("name")
+                    args = function.get("arguments")
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except json.JSONDecodeError:
+                            _LOGGER.warning("Failed to parse tool arguments: %s", args)
+                            args = {}
+
+                    _LOGGER.info("Calling tool %s with %s", name, args)
+                    try:
+                        tool_result = await api_instance.async_call_tool(
+                            llm.ToolInput(tool_name=name, tool_args=args)
+                        )
+                        messages.append({
+                            "role": "tool",
+                            "name": name,
+                            "content": json.dumps(tool_result),
+                        })
+                    except Exception as err:
+                        _LOGGER.exception("Tool execution error for '%s'", name)
+                        messages.append({
+                            "role": "tool",
+                            "name": name,
+                            "content": f"Error: {err}",
+                        })
+                
+                # Continue the loop to get the assistant's response to the tool results
             else:
-                response_text = await self._call_non_streaming(messages)
-            success = True
+                _LOGGER.warning("Reached maximum tool call iterations")
+                response_text = "I reached the maximum number of tool calls and had to stop."
+                success = True
+
         except HailoError as err:
-            _LOGGER.error("Hailo error: %s", err)
+            _LOGGER.error("Hailo error: %s (Details: %s)", err, err.details)
             response_text = f"Sorry, I encountered an error: {err}"
+            if err.details:
+                response_text += f"\n\nDetails: {err.details}"
+        except Exception as err:
+            _LOGGER.exception("Unexpected error in async_process")
+            response_text = f"Sorry, an unexpected error occurred: {err}"
 
         elapsed = time.monotonic() - t0
 
@@ -386,7 +481,7 @@ class HailoOllamaConversationEntity(
             clean_text,
         )
 
-        # Store plain text in history regardless of how the message was sent
+        # Store plain text in history for simplicity, or we could store the full message sequence
         updated_history = list(history)
         updated_history.append({"role": "user", "content": user_text})
         updated_history.append({"role": "assistant", "content": clean_text})
@@ -401,5 +496,11 @@ class HailoOllamaConversationEntity(
         )
 
 
+
 class HailoError(Exception):
     """Error from Hailo Ollama."""
+
+    def __init__(self, message: str, details: Any = None) -> None:
+        """Initialize."""
+        super().__init__(message)
+        self.details = details

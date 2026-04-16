@@ -120,11 +120,20 @@ class HailoAITaskEntity(AITaskEntity, HailoOllamaClientMixin):
         t0 = time.monotonic()
         try:
             if self._streaming:
-                response_text = await self._call_streaming(messages)
+                data = await self._call_streaming(messages)
             else:
-                response_text = await self._call_non_streaming(messages)
+                data = await self._call_non_streaming(messages)
+            
+            # If it's a raw string (from old _call_* implementation), use it
+            if isinstance(data, str):
+                response_text = data
+            else:
+                response_text = data.get("message", {}).get("content", "")
         except HailoError as err:
-            _LOGGER.error("Hailo AI task error: %s", err)
+            _LOGGER.error("Hailo AI task error: %s (Details: %s)", err, err.details)
+            raise
+        except Exception as err:
+            _LOGGER.exception("Unexpected error in Hailo AI task")
             raise
 
         elapsed = time.monotonic() - t0

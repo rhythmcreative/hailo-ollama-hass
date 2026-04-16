@@ -10,17 +10,24 @@ import aiohttp
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.helpers import llm
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig, SelectSelectorMode
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .const import (
     CONF_HOST,
+    CONF_LLM_HASS_API,
     CONF_MODEL,
     CONF_PORT,
     CONF_SHOW_THINKING,
     CONF_STREAMING,
     CONF_SYSTEM_PROMPT,
     DEFAULT_HOST,
+    DEFAULT_LLM_HASS_API,
     DEFAULT_MODEL,
     DEFAULT_PORT,
     DEFAULT_SHOW_THINKING,
@@ -239,6 +246,9 @@ class HailoOllamaConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_SYSTEM_PROMPT: user_input.get(
                             CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT
                         ),
+                        CONF_LLM_HASS_API: user_input.get(
+                            CONF_LLM_HASS_API, DEFAULT_LLM_HASS_API
+                        ),
                         CONF_STREAMING: user_input.get(
                             CONF_STREAMING, DEFAULT_STREAMING
                         ),
@@ -266,6 +276,9 @@ class HailoOllamaConfigFlow(ConfigFlow, domain=DOMAIN):
             vol.Optional(
                 CONF_SYSTEM_PROMPT, default=DEFAULT_SYSTEM_PROMPT
             ): str,
+            vol.Optional(
+                CONF_LLM_HASS_API, default=DEFAULT_LLM_HASS_API
+            ): llm.LLMContextSelector(),
             vol.Optional(
                 CONF_STREAMING, default=DEFAULT_STREAMING
             ): bool,
@@ -384,6 +397,10 @@ class HailoOllamaOptionsFlow(OptionsFlow):
                 CONF_SYSTEM_PROMPT,
                 default=current.get(CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT),
             ): str,
+            vol.Optional(
+                CONF_LLM_HASS_API,
+                default=current.get(CONF_LLM_HASS_API, DEFAULT_LLM_HASS_API),
+            ): llm.LLMContextSelector(),
             vol.Optional(
                 CONF_STREAMING,
                 default=current.get(CONF_STREAMING, DEFAULT_STREAMING),
