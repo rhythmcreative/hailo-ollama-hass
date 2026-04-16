@@ -89,11 +89,11 @@ class HailoOllamaClientMixin:
         stream: bool,
         tools: list[dict[str, Any]] | None = None,
     ) -> dict:
-        """Build the minimal /api/chat payload."""
+        """Build the minimal /api/chat payload for Oatpp compatibility."""
         payload = {
-            "model": self._model,
+            "model": str(self._model),
             "messages": messages,
-            "stream": stream,
+            "stream": bool(stream),
         }
         if tools:
             payload["tools"] = tools
