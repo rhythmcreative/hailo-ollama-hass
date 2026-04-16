@@ -1,6 +1,6 @@
 [project]
 name = "hailo-ollama-hass"
-version = "1.1.0"
+version = "1.1.1"
 description = "Home Assistant integration for Hailo Ollama"
 requires-python = ">=3.13"
 
