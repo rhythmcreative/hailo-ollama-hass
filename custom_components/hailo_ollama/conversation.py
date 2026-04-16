@@ -390,6 +390,28 @@ class HailoOllamaConversationEntity(
             except Exception as err:
                 _LOGGER.error("Failed to get LLM API instance: %s", err)
 
+        # Add internet search tool
+        if tools is None:
+            tools = []
+        
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": "search_internet",
+                "description": "Search the internet for current information, news, or general knowledge that you don't have in your training data.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query to look up on the internet."
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        })
+
         # Call Hailo with configured mode, handling tool calls in a loop
         response_text = ""
         success = False
@@ -427,9 +449,32 @@ class HailoOllamaConversationEntity(
 
                     _LOGGER.info("Calling tool %s with %s", name, args)
                     try:
-                        tool_result = await api_instance.async_call_tool(
-                            llm.ToolInput(tool_name=name, tool_args=args)
-                        )
+                        if name == "search_internet":
+                            query = args.get("query")
+                            _LOGGER.info("Searching internet for: %s", query)
+                            # Using a simple duckduckgo-style search via a text-based API
+                            search_url = f"https://api.duckduckgo.com/?q={query}&format=json&no_html=1&skip_disambig=1"
+                            session = async_get_clientsession(self.hass)
+                            async with session.get(search_url, timeout=10) as search_resp:
+                                if search_resp.status == 200:
+                                    search_data = await search_resp.json()
+                                    # Extract abstract or related topics
+                                    result = search_data.get("AbstractText")
+                                    if not result and search_data.get("RelatedTopics"):
+                                        result = search_data["RelatedTopics"][0].get("Text")
+                                    
+                                    if not result:
+                                        result = "No specific summary found, but the search was successful."
+                                    
+                                    tool_result = {"result": result, "source": "DuckDuckGo"}
+                                else:
+                                    tool_result = {"error": f"Search failed with status {search_resp.status}"}
+                        else:
+                            # Standard Home Assistant tool
+                            tool_result = await api_instance.async_call_tool(
+                                llm.ToolInput(tool_name=name, tool_args=args)
+                            )
+                        
                         messages.append({
                             "role": "tool",
                             "name": name,
