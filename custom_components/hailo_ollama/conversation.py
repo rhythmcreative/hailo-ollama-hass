@@ -384,10 +384,18 @@ class HailoOllamaConversationEntity(
         tools: list[dict[str, Any]] | None = None
         if self._llm_hass_api != DEFAULT_LLM_HASS_API:
             try:
-                # Use async_get_api instead of async_get_api_instance for compatibility
-                api_instance = llm.async_get_api(
+                # Create the required LLMContext for the new HA API
+                llm_context = llm.LLMContext(
+                    platform=DOMAIN,
+                    context=user_input.context,
+                    user_prompt=user_input.text,
+                    device_id=user_input.device_id,
+                )
+                # Pass the llm_context as required by HA 2025/2026
+                api_instance = await llm.async_get_api(
                     self.hass,
                     self._llm_hass_api,
+                    llm_context,
                 )
                 tools = [
                     {
@@ -401,7 +409,7 @@ class HailoOllamaConversationEntity(
                     for tool in api_instance.tools
                 ]
             except Exception as err:
-                _LOGGER.error("Failed to get LLM API: %s", err)
+                _LOGGER.exception("Failed to get LLM API")
 
         # Call Hailo with configured mode, handling tool calls in a loop
         response_text = ""
