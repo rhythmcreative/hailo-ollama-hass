@@ -16,11 +16,15 @@
           "model": "Model",
           "system_prompt": "System prompt",
           "llm_hass_api": "Control Home Assistant",
+          "temperature": "Temperature",
+          "top_p": "Top P",
           "streaming": "Use streaming responses",
           "show_thinking": "Show thinking process"
         },
         "data_description": {
           "llm_hass_api": "The API that the model will use to control Home Assistant.",
+          "temperature": "Control randomness: Lowering results in less random completions. As the temperature approaches zero, the model will become deterministic and repetitive.",
+          "top_p": "Control diversity via nucleus sampling: 0.5 means half of all likelihood-weighted options are considered.",
           "streaming": "Enable for token-by-token streaming. Disable for a single response (simpler but you wait for the full reply).",
           "show_thinking": "When enabled, reasoning inside <think> tags will be included in the response. Disable to return only the final answer."
         }
@@ -73,11 +77,15 @@
           "model": "Model",
           "system_prompt": "System prompt",
           "llm_hass_api": "Control Home Assistant",
+          "temperature": "Temperature",
+          "top_p": "Top P",
           "streaming": "Use streaming responses",
           "show_thinking": "Show thinking process"
         },
         "data_description": {
           "llm_hass_api": "The API that the model will use to control Home Assistant.",
+          "temperature": "Control randomness: Lowering results in less random completions. As the temperature approaches zero, the model will become deterministic and repetitive.",
+          "top_p": "Control diversity via nucleus sampling: 0.5 means half of all likelihood-weighted options are considered.",
           "streaming": "Enable for token-by-token streaming. Disable for a single response (simpler but you wait for the full reply).",
           "show_thinking": "When enabled, reasoning inside <think> tags will be included in the response. Disable to return only the final answer."
         }

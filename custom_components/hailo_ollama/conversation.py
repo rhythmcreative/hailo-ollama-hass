@@ -27,11 +27,15 @@ from .const import (
     CONF_SHOW_THINKING,
     CONF_STREAMING,
     CONF_SYSTEM_PROMPT,
+    CONF_TEMPERATURE,
+    CONF_TOP_P,
     DEFAULT_LLM_HASS_API,
     DEFAULT_SHOW_THINKING,
     DEFAULT_STREAMING,
     DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
+    DEFAULT_TOP_P,
     DOMAIN,
     SIGNAL_AVAILABILITY_CHANGED,
     SIGNAL_METRICS_UPDATED,
@@ -94,6 +98,11 @@ class HailoOllamaClientMixin:
             "model": str(self._model),
             "messages": messages,
             "stream": bool(stream),
+            "options": {
+                "temperature": float(self._temperature),
+                "top_p": float(self._top_p),
+                "repeat_penalty": 1.1,
+            }
         }
         if tools:
             payload["tools"] = tools
@@ -275,6 +284,12 @@ class HailoOllamaConversationEntity(
         )
         self._show_thinking: bool = opts.get(
             CONF_SHOW_THINKING, entry.data.get(CONF_SHOW_THINKING, DEFAULT_SHOW_THINKING)
+        )
+        self._temperature: float = opts.get(
+            CONF_TEMPERATURE, entry.data.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)
+        )
+        self._top_p: float = opts.get(
+            CONF_TOP_P, entry.data.get(CONF_TOP_P, DEFAULT_TOP_P)
         )
         self._attr_unique_id = entry.entry_id
         self._base_url = f"http://{self._host}:{self._port}"

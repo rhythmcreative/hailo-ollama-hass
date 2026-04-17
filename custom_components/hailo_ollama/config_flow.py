@@ -26,6 +26,8 @@ from .const import (
     CONF_SHOW_THINKING,
     CONF_STREAMING,
     CONF_SYSTEM_PROMPT,
+    CONF_TEMPERATURE,
+    CONF_TOP_P,
     DEFAULT_HOST,
     DEFAULT_LLM_HASS_API,
     DEFAULT_MODEL,
@@ -33,7 +35,9 @@ from .const import (
     DEFAULT_SHOW_THINKING,
     DEFAULT_STREAMING,
     DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT,
+    DEFAULT_TOP_P,
     DOMAIN,
 )
 
@@ -249,6 +253,12 @@ class HailoOllamaConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_LLM_HASS_API: user_input.get(
                             CONF_LLM_HASS_API, DEFAULT_LLM_HASS_API
                         ),
+                        CONF_TEMPERATURE: user_input.get(
+                            CONF_TEMPERATURE, DEFAULT_TEMPERATURE
+                        ),
+                        CONF_TOP_P: user_input.get(
+                            CONF_TOP_P, DEFAULT_TOP_P
+                        ),
                         CONF_STREAMING: user_input.get(
                             CONF_STREAMING, DEFAULT_STREAMING
                         ),
@@ -288,6 +298,12 @@ class HailoOllamaConfigFlow(ConfigFlow, domain=DOMAIN):
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
+            vol.Optional(
+                CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE
+            ): vol.Coerce(float),
+            vol.Optional(
+                CONF_TOP_P, default=DEFAULT_TOP_P
+            ): vol.Coerce(float),
             vol.Optional(
                 CONF_STREAMING, default=DEFAULT_STREAMING
             ): bool,
@@ -419,6 +435,14 @@ class HailoOllamaOptionsFlow(OptionsFlow):
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
+            vol.Optional(
+                CONF_TEMPERATURE,
+                default=current.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+            ): vol.Coerce(float),
+            vol.Optional(
+                CONF_TOP_P,
+                default=current.get(CONF_TOP_P, DEFAULT_TOP_P),
+            ): vol.Coerce(float),
             vol.Optional(
                 CONF_STREAMING,
                 default=current.get(CONF_STREAMING, DEFAULT_STREAMING),
