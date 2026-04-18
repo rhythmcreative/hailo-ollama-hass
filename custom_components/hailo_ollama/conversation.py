@@ -358,28 +358,6 @@ class HailoOllamaConversationEntity(
             return {"role": "user", "content": text, "images": images}
         return {"role": "user", "content": text}
 
-    async def _fetch_fact_context(self, text: str) -> str | None:
-        """Fetch real facts from the internet to ground the model."""
-        # Simple keywords to trigger knowledge lookup
-        trigger_words = ["quien", "quién", "qué", "que es", "historia", "cuándo", "donde", "napoleon", "roma", "borbon"]
-        if not any(word in text.lower() for word in trigger_words):
-            return None
-
-        _LOGGER.info("Fetching real-world facts to prevent hallucinations for: %s", text)
-        search_url = f"https://api.duckduckgo.com/?q={text}&format=json&no_html=1&skip_disambig=1"
-        try:
-            session = async_get_clientsession(self.hass)
-            async with session.get(search_url, timeout=5) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    result = data.get("AbstractText")
-                    if not result and data.get("RelatedTopics"):
-                        result = data["RelatedTopics"][0].get("Text")
-                    return result
-        except Exception as err:
-            _LOGGER.error("Failed to fetch facts: %s", err)
-        return None
-
     async def async_process(
         self,
         user_input: conversation.ConversationInput,
@@ -389,23 +367,15 @@ class HailoOllamaConversationEntity(
         user_text = user_input.text
         _LOGGER.debug("User: %s", user_text)
 
-        # 1. FETCH REAL FACTS (RAG Lite)
-        fact_context = await self._fetch_fact_context(user_text)
-        
         conversation_id = user_input.conversation_id or str(uuid.uuid4())
         history = self._conversations.get(conversation_id, [])
 
         attachments = getattr(user_input, "attachments", None)
         user_message = self._build_user_message(user_text, attachments)
 
-        # 2. INJECT KNOWLEDGE INTO SYSTEM PROMPT
-        current_system_prompt = self._system_prompt
-        if fact_context:
-            current_system_prompt += f"\n\nCONTEXTO REAL (USA ESTO PARA RESPONDER): {fact_context}"
-            _LOGGER.info("Injected facts into prompt: %s", fact_context[:100])
-
+        # Build messages: system prompt + history + new user message
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": current_system_prompt},
+            {"role": "system", "content": self._system_prompt},
         ]
         messages.extend(history)
         messages.append(user_message)
