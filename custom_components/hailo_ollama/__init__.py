@@ -23,13 +23,7 @@ from .const import (
 )
 from .services import async_register_services, async_unregister_services
 
-PLATFORMS = [
-    Platform.CONVERSATION,
-    Platform.AI_TASK,
-    Platform.SENSOR,
-    Platform.SELECT,
-    Platform.BUTTON,
-]
+PLATFORMS = [Platform.CONVERSATION, Platform.AI_TASK, Platform.SENSOR]
 
 _LOGGER = logging.getLogger(__name__)
 
