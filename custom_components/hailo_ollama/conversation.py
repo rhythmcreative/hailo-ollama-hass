@@ -38,6 +38,7 @@ from .const import (
     DEFAULT_TOP_P,
     DOMAIN,
     SIGNAL_AVAILABILITY_CHANGED,
+    SIGNAL_CLEAR_HISTORY,
     SIGNAL_METRICS_UPDATED,
 )
 
@@ -304,10 +305,23 @@ class HailoOllamaConversationEntity(
                 self._handle_availability,
             )
         )
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_CLEAR_HISTORY.format(self._entry.entry_id),
+                self._handle_clear_history,
+            )
+        )
 
     @callback
     def _handle_availability(self, available: bool) -> None:
         self.async_write_ha_state()
+
+    @callback
+    def _handle_clear_history(self) -> None:
+        """Clear all stored conversations."""
+        _LOGGER.info("Clearing conversation history for %s", self._entry.title)
+        self._conversations.clear()
 
     @property
     def available(self) -> bool:

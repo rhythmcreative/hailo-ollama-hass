@@ -21,3 +21,4 @@ DEFAULT_TIMEOUT = 500
 HEALTH_CHECK_INTERVAL = 60
 SIGNAL_METRICS_UPDATED = "hailo_ollama_metrics_{}"
 SIGNAL_AVAILABILITY_CHANGED = "hailo_ollama_availability_{}"
+SIGNAL_CLEAR_HISTORY = "hailo_ollama_clear_history_{}"
