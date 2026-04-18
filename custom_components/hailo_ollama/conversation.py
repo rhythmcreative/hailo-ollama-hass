@@ -101,7 +101,7 @@ class HailoOllamaClientMixin:
             "options": {
                 "temperature": float(self._temperature),
                 "top_p": float(self._top_p),
-                "repeat_penalty": 1.1,
+                "repeat_penalty": 2.0,
             }
         }
         if tools:
