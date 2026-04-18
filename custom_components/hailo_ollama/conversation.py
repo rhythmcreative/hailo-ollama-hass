@@ -101,7 +101,10 @@ class HailoOllamaClientMixin:
             "options": {
                 "temperature": float(self._temperature),
                 "top_p": float(self._top_p),
-                "repeat_penalty": 1.1,
+                "repeat_penalty": 1.5,
+                "presence_penalty": 0.6,
+                "frequency_penalty": 0.6,
+                "num_predict": 300,
             }
         }
         if tools:
@@ -395,7 +398,7 @@ class HailoOllamaConversationEntity(
                 api_instance = await llm.async_get_api(
                     self.hass,
                     self._llm_hass_api,
-                    llm_context,
+                    llm_context=llm_context,
                 )
                 tools = [
                     {
