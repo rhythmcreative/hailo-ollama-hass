@@ -102,7 +102,7 @@ class HailoOllamaClientMixin:
                 "temperature": float(self._temperature),
                 "top_p": float(self._top_p),
                 "repeat_penalty": 1.3,
-                "num_predict": 2048,
+                "num_predict": 1024,
             }
         }
         if tools:
