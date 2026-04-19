@@ -99,8 +99,9 @@ class HailoOllamaClientMixin:
             "messages": messages,
             "stream": bool(stream),
             "options": {
-                "temperature": float(self._temperature),
-                "top_p": float(self._top_p),
+                "temperature": 0.4,
+                "top_p": 0.8,
+                "top_k": 40,
                 "repeat_penalty": 1.3,
                 "num_predict": 1024,
             }
