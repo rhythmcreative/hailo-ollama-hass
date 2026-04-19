@@ -44,27 +44,56 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _deduplicate_response(text: str) -> str:
+    """Detect and truncate infinite repetition loops in the response."""
+    if not text:
+        return ""
+    
+    # Split into lines and check for exact line repetition (common in loops)
+    lines = text.split("\n")
+    unique_lines = []
+    for line in lines:
+        clean_line = line.strip().lower()
+        if clean_line and clean_line in [l.strip().lower() for l in unique_lines]:
+            break
+        unique_lines.append(line)
+    
+    result = "\n".join(unique_lines)
+    
+    # Check for sentence-level repetition
+    sentences = result.split(". ")
+    seen_sentences = set()
+    cleaned_sentences = []
+    for s in sentences:
+        clean_s = s.strip().lower()
+        if clean_s and clean_s in seen_sentences:
+            break
+        seen_sentences.add(clean_s)
+        cleaned_sentences.append(s)
+        
+    return ". ".join(cleaned_sentences).strip()
+
+
 def _process_thinking(response_text: str, show_thinking: bool) -> str:
-    """Strip or format <think>...</think> reasoning blocks.
+    """Strip or format <think>...</think> reasoning blocks and deduplicate content."""
+    if not response_text:
+        return ""
 
-    Handles both well-formed <think>...</think> and responses where the
-    opening <think> tag is absent (some models omit it in streaming).
-    When show_thinking is True the thinking content is wrapped in <i>
-    tags so the UI can present it in italic style.
-    """
-    if "</think>" not in response_text:
-        return response_text.strip()
+    text_to_process = response_text
+    if "</think>" in response_text:
+        # Split on the first </think>; everything before is thinking content.
+        think_part, _, answer_part = response_text.partition("</think>")
+        thinking = think_part.removeprefix("<think>").strip()
+        answer = answer_part.strip()
+        
+        # Deduplicate the answer part specifically
+        answer = _deduplicate_response(answer)
 
-    # Split on the first </think>; everything before is thinking content.
-    think_part, _, answer_part = response_text.partition("</think>")
-
-    # Strip the optional leading <think> tag.
-    thinking = think_part.removeprefix("<think>").strip()
-    answer = answer_part.strip()
-
-    if show_thinking and thinking:
-        return f"<i>{thinking}</i>\n\n{answer}"
-    return answer
+        if show_thinking and thinking:
+            return f"<i>{thinking}</i>\n\n{answer}"
+        return answer
+    
+    return _deduplicate_response(text_to_process)
 
 
 async def async_setup_entry(
