@@ -45,37 +45,12 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _deduplicate_response(text: str) -> str:
-    """Detect and truncate infinite repetition loops in the response."""
-    if not text:
-        return ""
-    
-    # Split into lines and check for exact line repetition (common in loops)
-    lines = text.split("\n")
-    unique_lines = []
-    for line in lines:
-        clean_line = line.strip().lower()
-        if clean_line and clean_line in [l.strip().lower() for l in unique_lines]:
-            break
-        unique_lines.append(line)
-    
-    result = "\n".join(unique_lines)
-    
-    # Check for sentence-level repetition
-    sentences = result.split(". ")
-    seen_sentences = set()
-    cleaned_sentences = []
-    for s in sentences:
-        clean_s = s.strip().lower()
-        if clean_s and clean_s in seen_sentences:
-            break
-        seen_sentences.add(clean_s)
-        cleaned_sentences.append(s)
-        
-    return ". ".join(cleaned_sentences).strip()
+    """Disabled: Returning original text to allow full model expression."""
+    return text.strip()
 
 
 def _process_thinking(response_text: str, show_thinking: bool) -> str:
-    """Strip or format <think>...</think> reasoning blocks and deduplicate content."""
+    """Strip or format <think>...</think> reasoning blocks without aggressive deduplication."""
     if not response_text:
         return ""
 
@@ -86,14 +61,12 @@ def _process_thinking(response_text: str, show_thinking: bool) -> str:
         thinking = think_part.removeprefix("<think>").strip()
         answer = answer_part.strip()
         
-        # Deduplicate the answer part specifically
-        answer = _deduplicate_response(answer)
-
         if show_thinking and thinking:
             return f"<i>{thinking}</i>\n\n{answer}"
         return answer
     
-    return _deduplicate_response(text_to_process)
+    return text_to_process.strip()
+
 
 
 async def async_setup_entry(
@@ -122,17 +95,17 @@ class HailoOllamaClientMixin:
         stream: bool,
         tools: list[dict[str, Any]] | None = None,
     ) -> dict:
-        """Build the minimal /api/chat payload for Oatpp compatibility."""
+        """Build the /api/chat payload using configured entity attributes."""
         payload = {
             "model": str(self._model),
             "messages": messages,
             "stream": bool(stream),
             "options": {
-                "temperature": 0.4,
-                "top_p": 0.8,
+                "temperature": getattr(self, "_temperature", 0.7),
+                "top_p": getattr(self, "_top_p", 0.9),
                 "top_k": 40,
-                "repeat_penalty": 1.3,
-                "num_predict": 1024,
+                "repeat_penalty": 1.1,
+                "num_predict": 4096,
             }
         }
         if tools:
