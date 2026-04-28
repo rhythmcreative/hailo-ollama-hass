@@ -95,17 +95,19 @@ class HailoOllamaClientMixin:
         stream: bool,
         tools: list[dict[str, Any]] | None = None,
     ) -> dict:
-        """Build the /api/chat payload using configured entity attributes."""
+        """Build the optimized /api/chat payload for speed."""
         payload = {
             "model": str(self._model),
             "messages": messages,
             "stream": bool(stream),
+            "keep_alive": "24h",
             "options": {
                 "temperature": getattr(self, "_temperature", 0.7),
                 "top_p": getattr(self, "_top_p", 0.9),
                 "top_k": 40,
-                "repeat_penalty": 1.1,
-                "num_predict": 4096,
+                "repeat_penalty": 1.3,
+                "num_predict": 1024,
+                "num_thread": 4,
             }
         }
         if tools:
@@ -372,6 +374,9 @@ class HailoOllamaConversationEntity(
 
         conversation_id = user_input.conversation_id or str(uuid.uuid4())
         history = self._conversations.get(conversation_id, [])
+        # Keep only the last 5 turns (10 messages) to maintain maximum speed
+        if len(history) > 10:
+            history = history[-10:]
 
         attachments = getattr(user_input, "attachments", None)
         user_message = self._build_user_message(user_text, attachments)
