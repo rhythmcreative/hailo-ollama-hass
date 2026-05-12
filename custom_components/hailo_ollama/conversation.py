@@ -100,7 +100,7 @@ class HailoOllamaClientMixin:
             "model": str(self._model),
             "messages": messages,
             "stream": bool(stream),
-            "keep_alive": "24h",
+            "keep_alive": -1,  # Keep model loaded indefinitely to prevent 22s NPU reload delays
             "options": {
                 "temperature": getattr(self, "_temperature", 0.7),
                 "top_p": getattr(self, "_top_p", 0.9),

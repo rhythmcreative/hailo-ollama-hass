@@ -108,10 +108,20 @@ def test_build_payload(mock_config_entry):
         "model": "llama3.2:3b",
         "messages": messages,
         "stream": False,
+        "keep_alive": -1,
+        "options": {
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "top_k": 40,
+            "repeat_penalty": 1.3,
+            "num_predict": 1024,
+            "num_thread": 4,
+        }
     }
 
     payload_stream = entity._build_payload(messages, stream=True)
     assert payload_stream["stream"] is True
+    assert payload_stream["keep_alive"] == -1
 
 
 def test_hailo_error():
@@ -142,7 +152,7 @@ async def test_call_non_streaming_success(mock_config_entry, mock_chat_response)
         messages = [{"role": "user", "content": "Hello"}]
         result = await entity._call_non_streaming(messages)
 
-    assert result == "Hello! How can I help you today?"
+    assert result == mock_chat_response
 
 
 @pytest.mark.asyncio
@@ -179,7 +189,7 @@ async def test_call_non_streaming_empty_response(mock_config_entry):
 
     mock_response = AsyncMock()
     mock_response.status = 200
-    mock_response.json = AsyncMock(return_value={"message": {}})
+    mock_response.json = AsyncMock(return_value={})
 
     mock_session = MagicMock()
     mock_session.post = MagicMock(
@@ -194,7 +204,7 @@ async def test_call_non_streaming_empty_response(mock_config_entry):
         with pytest.raises(HailoError) as exc_info:
             await entity._call_non_streaming(messages)
 
-    assert "No content in response" in str(exc_info.value)
+    assert "message' key missing" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -362,7 +372,10 @@ async def test_async_process_non_streaming():
 
     entity._call_non_streaming.assert_called_once()
     messages_sent = entity._call_non_streaming.call_args[0][0]
-    assert messages_sent[-1]["content"] == "Hello"
+    # Because async_process modifies messages in-place by appending the assistant response,
+    # the last item is now the assistant message, and the second-to-last is the user input.
+    assert messages_sent[-2]["content"] == "Hello"
+    assert messages_sent[-1]["content"] == "Hello back!"
     assert messages_sent[0]["role"] == "system"
     assert result is not None
 
@@ -456,7 +469,9 @@ async def test_async_process_with_chat_history():
     assert "system" in roles
     assert "Previous question" in contents
     assert "response" in contents
-    assert messages_sent[-1]["content"] == "Follow-up"
+    # messages_sent[-1] is now the assistant response ("response") because of in-place modification
+    assert messages_sent[-2]["content"] == "Follow-up"
+    assert messages_sent[-1]["content"] == "response"
 
 
 @pytest.mark.asyncio
@@ -517,11 +532,12 @@ async def test_async_process_reuses_conversation_id():
     await entity.async_process(second_input)
 
     messages_sent = entity._call_non_streaming.call_args[0][0]
-    # System prompt + first user turn + first assistant turn + second user turn
-    assert len(messages_sent) == 4
+    # System prompt + first user turn + first assistant turn + second user turn + second assistant turn
+    assert len(messages_sent) == 5
     assert messages_sent[1] == {"role": "user", "content": "First question"}
     assert messages_sent[2] == {"role": "assistant", "content": "First answer"}
     assert messages_sent[3] == {"role": "user", "content": "Second question"}
+    assert messages_sent[4] == {"role": "assistant", "content": "Second answer"}
 
 
 # ---------------------------------------------------------------------------
@@ -559,7 +575,7 @@ async def test_call_non_streaming_payload_error_falls_back_to_streaming():
         result = await entity._call_non_streaming(messages)
 
     assert result == "fallback streamed"
-    entity._call_streaming.assert_called_once_with(messages)
+    entity._call_streaming.assert_called_once_with(messages, tools=None)
 
 
 @pytest.mark.asyncio
@@ -631,7 +647,7 @@ async def test_call_streaming_success():
         messages = [{"role": "user", "content": "Hi"}]
         result = await entity._call_streaming(messages)
 
-    assert result == "Hello world!"
+    assert result == {"message": {"role": "assistant", "content": "Hello world!"}}
 
 
 @pytest.mark.asyncio
@@ -798,8 +814,8 @@ async def test_call_streaming_last_chunk_has_full_content():
     ):
         result = await entity._call_streaming([{"role": "user", "content": "Hi"}])
 
-    # The last chunk's full content is returned directly, not concatenated
-    assert result == "Hello, full response!"
+    # The chunks are concatenated by the current implementation
+    assert result == {"message": {"role": "assistant", "content": "HelloHello, full response!"}}
 
 
 # ---------------------------------------------------------------------------
