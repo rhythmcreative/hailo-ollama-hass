@@ -3,7 +3,7 @@
   "name": "Hailo Ollama",
   "version": "2.1.1",
   "codeowners": [
-    "@sgeorgakis"
+    "@rhythmcreative"
   ],
   "config_flow": true,
   "iot_class": "local_polling",

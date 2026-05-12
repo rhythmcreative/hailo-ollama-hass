@@ -1,7 +1,7 @@
 # Hailo Ollama for Home Assistant
 
-[![Tests](https://github.com/sgeorgakis/hailo-ollama-hass/actions/workflows/tests.yml/badge.svg)](https://github.com/sgeorgakis/hailo-ollama-hass/actions/workflows/tests.yml)
-[![Coverage](https://codecov.io/gh/sgeorgakis/hailo-ollama-hass/branch/main/graph/badge.svg)](https://codecov.io/gh/sgeorgakis/hailo-ollama-hass)
+[![Tests](https://github.com/rhythmcreative/hailo-ollama-hass/actions/workflows/tests.yml/badge.svg)](https://github.com/rhythmcreative/hailo-ollama-hass/actions/workflows/tests.yml)
+[![Coverage](https://codecov.io/gh/rhythmcreative/hailo-ollama-hass/branch/main/graph/badge.svg)](https://codecov.io/gh/rhythmcreative/hailo-ollama-hass)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
@@ -25,14 +25,14 @@ A Home Assistant custom integration that connects to a [Hailo-Ollama](https://gi
 
 ### HACS (Recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=sgeorgakis&repository=hailo-ollama-hass&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rhythmcreative&repository=hailo-ollama-hass&category=integration)
 
 Or manually add via HACS:
 
 1. Open HACS in Home Assistant
 2. Click the three dots in the top right corner
 3. Select "Custom repositories"
-4. Add `https://github.com/sgeorgakis/hailo-ollama-hass` with category "Integration"
+4. Add `https://github.com/rhythmcreative/hailo-ollama-hass` with category "Integration"
 5. Click "Download" on the Hailo Ollama card
 6. Restart Home Assistant
 
